@@ -1,0 +1,187 @@
+Daresni — Build Prompt (Firebase + React JS only, no TypeScript)
+
+You are a senior full-stack developer. Build Daresni, a web platform that connects students with tutors/coaches for booking sessions. Use Firebase + React (JavaScript). Do not use TypeScript. Defer payments and any complex/“hard” features to later phases, but scaffold them cleanly (stubs/feature flags). Do not ask clarifying questions; make sensible assumptions and state them at the top.
+
+Tech constraints (must follow)
+
+Frontend: React (JavaScript, not TypeScript) with Vite and TailwindCSS. Use React Router. State management with React Query or SWR (your choice), all code in .jsx/.js.
+
+Backend: Firebase only:
+
+Firebase Authentication (Email/Password to start; Google later).
+
+Cloud Firestore as the database.
+
+Firebase Storage for images (tutor avatars).
+
+Firebase Hosting for the SPA.
+
+Cloud Functions optional; only if needed (e.g., cron emails later). Keep app running fully without them for now.
+
+No PostgreSQL, no Drizzle, no Express, no TypeScript.
+
+No payments now. Provide a stubbed payments module with no-ops and clear TODOs.
+
+Deliverables (what you must output)
+
+Assumptions list (1–2 short paragraphs).
+
+Project structure tree and rationale.
+
+Firestore data model (collections, document shapes, indexes). Include examples.
+
+Firebase Security Rules (Auth-aware; read/write rules by role).
+
+Auth flow with Firebase Auth (signup/signin/logout, role assignment).
+
+Core screens/components (JSX) with Tailwind:
+
+Landing/Home (search tutors, featured).
+
+Search/Results with filtering/sorting.
+
+Tutor Profile (bio, subjects, rating, availability grid).
+
+Booking Flow (select subject → pick time → confirm).
+
+Student Dashboard (upcoming/past, reviews, iCal export link placeholder).
+
+Tutor Dashboard (profile editor, subjects, availability editor, requests).
+
+Admin Dashboard (basic metrics + user moderation).
+
+Auth pages (login/register/forgot).
+
+Language toggle (EN/AR) with i18n scaffolding (JSON dictionaries). Default EN; AR can be Phase 2 but include the plumbing and a few key strings.
+
+API layer as plain fetch helpers (no server): all CRUD goes directly to Firestore with security rules; keep a thin lib/api.js that wraps Firestore reads/writes and centralizes error handling.
+
+Availability logic (client-side + Firestore schema): weekly template + date overrides. Prevent overlapping teacher slots and booking conflicts.
+
+Reviews: only students with a completed session can review; average rating computed client-side and persisted (transaction or batched write).
+
+Basic analytics for tutors (client-side charts backed by Firestore queries): bookings over time, rating, top subjects. Keep it simple—no complex aggregation.
+
+Matching: provide a simple first-pass ranking (subject match + rating + price fit + availability overlap). Implement as a pure client function reading Firestore; expose a module lib/match.js. Keep weights configurable.
+
+Gamification stubs (no real logic yet): badges, XP counters fields on user docs, UI placeholders.
+
+Calendar/Reminders stubs: iCal export link points to a placeholder function; reminder jobs are TODOs for Cloud Functions (commented plan).
+
+AI features stubs: “Study Buddy” and “Skill Gap Analyzer” as UI routes/components with mock responses and clear extension points; no LLM calls now.
+
+Runbook: exact setup steps (Windows friendly), including firebase init, .env.local values, and how to deploy to Firebase Hosting.
+
+Testing plan: at least a handful of Jest tests for pure functions (matching, validators) and Playwright plan for critical user flows (login, search, book).
+
+Firestore data model (implement exactly or better, but keep fields)
+
+users (doc id = uid from Firebase Auth):
+role: 'student'|'tutor'|'admin', firstName, lastName, email, avatarUrl, bio, languages: ['en','ar'], timezone, pricePerHour, ratingAvg, ratingCount, verified: boolean, xp, badges: [], createdAt, updatedAt.
+
+subjects:
+tutorId, name, level, priceOverride?, createdAt.
+
+bookings:
+tutorId, studentId, subjectId, startAt (ISO), endAt (ISO), status: 'pending'|'approved'|'completed'|'cancelled', groupSeatsMax?, groupSeatsTaken?, createdAt.
+
+reviews:
+tutorId, studentId, bookingId, rating (1–5), comment, createdAt.
+
+weeklyAvailability:
+tutorId, weekday (0–6), startMinutes, endMinutes.
+
+availabilityOverrides:
+tutorId, date (YYYY-MM-DD), isAvailable, startMinutes?, endMinutes?, note?.
+
+Indexes: composite as needed for bookings by tutorId,startAt, studentId,startAt, users.role, users.ratingAvg, subjects.tutorId.
+
+Firebase Security Rules (high-level requirements)
+
+Only authenticated users read basic tutor data.
+
+users/{uid}: user may read/write their own profile (limited fields); admin can update any.
+
+bookings: student can create for themselves; tutor can read bookings where tutorId==auth.uid; admin read all. Status transitions enforced in rules or via callable function (if needed); for MVP you can enforce in client with validation + write rules checking ownership fields.
+
+reviews: only allowed if a completed booking exists linking studentId and tutorId (client enforced; rules at least check studentId==auth.uid).
+
+Prevent writes to derived fields (ratingAvg, ratingCount, xp, badges) by non-admin; allow through a designated path or use Cloud Functions later.
+
+UI/UX musts
+
+Clean, mobile-first, Tailwind. Arabic RTL layouts supported (scaffolded).
+
+Filters: subject, level, price range, language, rating, availability window (basic).
+
+Empty states, loading states, and error toasts everywhere.
+
+Availability editor: grid per weekday, add/remove slots; override dates.
+
+Booking flow: conflict checks against tutor availability and existing bookings.
+
+Tutor analytics: small cards + simple chart (client computed).
+
+Admin: list of users, tutors pending verification (just a boolean field), basic stats (counts of tutors/students/bookings).
+
+Matching (MVP)
+
+Implement lib/match.js:
+
+Normalize each tutor to scores in [0,1]: subjectMatch, availabilityOverlap, ratingNorm, priceFit, languageMatch, verifiedBoost.
+
+Overall score = 0.3*subject + 0.25*availability + 0.2*rating + 0.15*price + 0.07*language + 0.03*verified.
+
+Return list with score and a short why string.
+
+Payments and “hard things”
+
+Payments: later. Provide lib/payments.js with no-op methods and TODO comments.
+
+Reminders, email, SMS: later. Provide comments where they would plug in (Cloud Functions).
+
+AI features: UI stubs only; expose lib/ai.js that returns mocked data.
+
+Project structure (example)
+
+src/
+main.jsx, App.jsx, routes/, components/, pages/, lib/ (api.js, auth.js, match.js, payments.js, i18n.js), hooks/, styles/
+firebase.js (client SDK init)
+
+public/ (favicon, manifest)
+
+tailwind.config.js, postcss.config.js, vite.config.js
+
+Running (Windows-friendly)
+
+npm create vite@latest daresni -- --template react (JS template)
+
+npm i firebase react-router-dom @tanstack/react-query tailwindcss postcss autoprefixer
+
+npx tailwindcss init -p and set content to include ./index.html, ./src/**/*.{js,jsx}.
+
+firebase init (Hosting + Firestore; Functions optional).
+
+.env.local holds Firebase web config.
+
+npm run dev to start; firebase deploy to publish.
+
+What to hand back (concise, but complete)
+
+Assumptions.
+
+Folder tree.
+
+Firestore schema + indexes.
+
+Security Rules file.
+
+Key React components/pages (JSX) skeletons with Tailwind classes.
+
+firebase.js, lib/api.js, lib/auth.js, lib/match.js, lib/payments.js (stubs), lib/i18n.js scaffolding.
+
+A few unit tests for matching and validators.
+
+Step-by-step “How to run” (copy-paste commands).
+
+Remember: React (JavaScript) only, Firebase for auth + data, no Postgres/Express/TypeScript, and payments or any hard features later with clear stubs/TODOs so we can extend safely.
